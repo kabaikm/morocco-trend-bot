@@ -3,6 +3,7 @@ import type { Express } from 'express';
 import { TelegramService, TelegramMessage } from '../services/telegram.service';
 import { ContentService } from '../services/content.service';
 import { LinkedInService } from '../services/linkedin.service';
+import { ImageService } from '../services/image.service';
 
 const router = express.Router();
 
@@ -119,8 +120,14 @@ async function handleCustomTopic(chatId: number, topic: string) {
       style: 'professional',
     });
 
-    // Generate image (using mock for now)
-    const imageUrl = `https://via.placeholder.com/1200x630?text=${encodeURIComponent(content.title)}`;
+    // Generate image using Gemini API
+    await TelegramService.sendMessage(chatId, '🎨 Generating image with AI...');
+    const imageResult = await ImageService.generateLinkedInImage({
+      topic,
+      title: content.title,
+      style: 'professional',
+    });
+    const imageUrl = imageResult.imageUrl;
 
     // Store pending post
     const postId = `post_${Date.now()}`;
