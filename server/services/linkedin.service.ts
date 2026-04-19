@@ -14,34 +14,46 @@ export class LinkedInService {
     try {
       const { text, imageUrl, title } = request;
 
-      // Create post content
-      const postContent: any = {
-        commentary: text,
-        visibility: 'PUBLIC',
+      // Create post content with correct LinkedIn API format
+      const postData: any = {
+        author: LINKEDIN_PERSON_URN,
+        lifecycleState: 'PUBLISHED',
+        specificContent: {
+          'com.linkedin.ugc.ShareContent': {
+            shareCommentary: {
+              text: text,
+            },
+            shareMediaCategory: imageUrl ? 'IMAGE' : 'NONE',
+          },
+        },
+        visibility: {
+          'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
+        },
       };
 
-      // Add image if provided
+      // Add media if image is provided
       if (imageUrl) {
-        postContent.content = {
-          media: {
-            title: title || 'Morocco Trend Post',
-            id: imageUrl, // In real scenario, would need to upload image first
-          },
-        };
+        try {
+          // Try to upload image first
+          const uploadedAssetId = await this.uploadImage(imageUrl);
+          if (uploadedAssetId) {
+            postData.specificContent['com.linkedin.ugc.ShareContent'].media = [
+              {
+                status: 'READY',
+                media: uploadedAssetId,
+              },
+            ];
+          }
+        } catch (imageError) {
+          console.warn('Image upload failed, publishing without image:', imageError);
+          // Continue without image
+          postData.specificContent['com.linkedin.ugc.ShareContent'].shareMediaCategory = 'NONE';
+        }
       }
 
       const response = await axios.post(
         'https://api.linkedin.com/v2/ugcPosts',
-        {
-          author: LINKEDIN_PERSON_URN,
-          lifecycleState: 'PUBLISHED',
-          specificContent: {
-            'com.linkedin.ugc.ShareContent': postContent,
-          },
-          visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-          },
-        },
+        postData,
         {
           headers: {
             Authorization: `Bearer ${LINKEDIN_ACCESS_TOKEN}`,
@@ -53,16 +65,19 @@ export class LinkedInService {
 
       return response.data;
     } catch (error: any) {
-      console.error('Error publishing to LinkedIn:', error.response?.data || error.message);
-      throw error;
+      console.error('Error publishing to LinkedIn:', {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
+      });
+      throw new Error(`LinkedIn API Error (${error.response?.status}): ${error.response?.data?.message || error.message}`);
     }
   }
 
-  static async publishPostWithImage(request: LinkedInPostRequest): Promise<any> {
+  static async uploadImage(imageUrl: string): Promise<string | null> {
     try {
-      const { text, imageUrl, title } = request;
-
-      // Step 1: Register upload
+      // Step 1: Get upload URL
       const uploadResponse = await axios.get(
         'https://api.linkedin.com/v2/assets?action=getUploadUrl',
         {
@@ -76,62 +91,24 @@ export class LinkedInService {
       const uploadUrl = uploadResponse.data.value.uploadUrl;
       const assetId = uploadResponse.data.value.asset;
 
-      // Step 2: Upload image (if provided)
-      if (imageUrl) {
-        const imageResponse = await axios.get(imageUrl, {
-          responseType: 'arraybuffer',
-        });
+      // Step 2: Download image
+      const imageResponse = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        timeout: 10000,
+      });
 
-        await axios.put(uploadUrl, imageResponse.data, {
-          headers: {
-            'Content-Type': 'image/jpeg',
-          },
-        });
-      }
-
-      // Step 3: Create post with image
-      const postContent: any = {
-        commentary: text,
-        visibility: 'PUBLIC',
-      };
-
-      if (imageUrl && assetId) {
-        postContent.media = [
-          {
-            status: 'READY',
-            media: assetId,
-            title: {
-              text: title || 'Morocco Trend Post',
-            },
-          },
-        ];
-      }
-
-      const response = await axios.post(
-        'https://api.linkedin.com/v2/ugcPosts',
-        {
-          author: LINKEDIN_PERSON_URN,
-          lifecycleState: 'PUBLISHED',
-          specificContent: {
-            'com.linkedin.ugc.ShareContent': postContent,
-          },
-          visibility: {
-            'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC',
-          },
+      // Step 3: Upload to LinkedIn
+      await axios.put(uploadUrl, imageResponse.data, {
+        headers: {
+          'Content-Type': 'image/jpeg',
         },
-        {
-          headers: {
-            Authorization: `Bearer ${LINKEDIN_ACCESS_TOKEN}`,
-            'Content-Type': 'application/json',
-            'X-Restli-Protocol-Version': '2.0.0',
-          },
-        }
-      );
+        timeout: 10000,
+      });
 
-      return response.data;
+      return assetId;
     } catch (error: any) {
-      console.error('Error publishing to LinkedIn with image:', error.response?.data || error.message);
-      throw error;
+      console.error('Error uploading image to LinkedIn:', error.message);
+      return null;
     }
   }
 
