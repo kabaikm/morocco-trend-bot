@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBJX2cdf5UkmyiffNKfeESTrZNqamWLN5Y';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
+// Using Pollinations.ai - Completely free, no API key needed, unlimited requests
+const POLLINATIONS_API_URL = 'https://image.pollinations.ai/prompt';
 
 export interface ImageGenerationRequest {
   topic: string;
@@ -19,7 +19,7 @@ export interface ImageGenerationResponse {
 
 export class ImageService {
   /**
-   * Generate LinkedIn-optimized image using Gemini API
+   * Generate LinkedIn-optimized image using Pollinations.ai (completely free)
    * LinkedIn recommends 1200x627 pixels for optimal display
    */
   static async generateLinkedInImage(request: ImageGenerationRequest): Promise<ImageGenerationResponse> {
@@ -29,43 +29,13 @@ export class ImageService {
       // Create optimized prompt for LinkedIn professional images
       const prompt = this.createLinkedInPrompt(topic, title, style);
 
-      console.log('Generating image with Gemini API for topic:', topic);
+      console.log('Generating image with Pollinations.ai for topic:', topic);
       console.log('Prompt:', prompt);
 
-      // Call Gemini API to generate image
-      const response = await axios.post(
-        `${GEMINI_API_URL}?key=${GEMINI_API_KEY}`,
-        {
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 2048,
-          },
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 30000,
-        }
-      );
+      // Generate image using Pollinations.ai
+      const imageUrl = this.generatePollinationsUrl(prompt);
 
-      // Extract image URL from response
-      const imageUrl = this.extractImageUrl(response.data);
-
-      if (!imageUrl) {
-        throw new Error('No image URL in Gemini response');
-      }
+      console.log('✅ Image URL generated:', imageUrl);
 
       return {
         imageUrl,
@@ -73,15 +43,27 @@ export class ImageService {
         generatedAt: new Date(),
       };
     } catch (error: any) {
-      console.error('Error generating image with Gemini:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      });
+      console.error('Error generating image:', error.message);
 
-      // Fallback to placeholder if Gemini fails
+      // Fallback to placeholder if generation fails
       return this.generatePlaceholderImage(request);
     }
+  }
+
+  /**
+   * Generate Pollinations.ai image URL
+   * Pollinations.ai generates images on-demand when the URL is accessed
+   */
+  private static generatePollinationsUrl(prompt: string): string {
+    // Encode the prompt for URL
+    const encodedPrompt = encodeURIComponent(prompt);
+
+    // Pollinations.ai format: /prompt/{prompt}?width=1200&height=627&model=flux&seed={random}
+    const width = 1200;
+    const height = 627;
+    const seed = Math.floor(Math.random() * 1000000);
+
+    return `${POLLINATIONS_API_URL}/${encodedPrompt}?width=${width}&height=${height}&model=flux&seed=${seed}`;
   }
 
   /**
@@ -89,63 +71,32 @@ export class ImageService {
    */
   private static createLinkedInPrompt(topic: string, title?: string, style: string = 'professional'): string {
     const styleGuides = {
-      professional: 'Clean, modern, corporate aesthetic with professional colors (blues, grays, whites)',
-      creative: 'Vibrant, artistic, eye-catching design with creative elements',
-      minimal: 'Minimalist design with lots of white space, simple geometric shapes',
-      vibrant: 'Bold colors, energetic, dynamic composition with strong visual impact',
+      professional:
+        'Clean, modern, corporate aesthetic. Professional colors: blues, grays, whites. Minimalist design. High quality, 4K.',
+      creative:
+        'Vibrant, artistic, eye-catching design. Creative elements and bold colors. Modern art style. High quality, 4K.',
+      minimal:
+        'Minimalist design with lots of white space. Simple geometric shapes. Clean typography. Elegant and professional.',
+      vibrant: 'Bold colors, energetic, dynamic composition. Strong visual impact. Modern design. High quality, 4K.',
     };
 
     const styleGuide = styleGuides[style as keyof typeof styleGuides] || styleGuides.professional;
 
-    return `Create a professional LinkedIn post image for the topic: "${topic}".
+    return `Professional LinkedIn post image about: "${topic}".
 Title: ${title || topic}
 
+Style: ${styleGuide}
 Requirements:
-- Dimensions: 1200x627 pixels (LinkedIn standard)
-- Style: ${styleGuide}
-- Include relevant icons or graphics related to the topic
-- Add subtle background with the main content in the center
-- Professional typography with clear hierarchy
-- Color scheme: Modern and professional
-- No text overlay required, just visual design
-- High quality, suitable for LinkedIn social media
-- Modern design trends, 2024 style
-
-Generate a visually appealing image that represents this topic professionally.`;
-  }
-
-  /**
-   * Extract image URL from Gemini API response
-   */
-  private static extractImageUrl(response: any): string | null {
-    try {
-      // Gemini returns content in different formats
-      if (response.candidates && response.candidates[0]) {
-        const candidate = response.candidates[0];
-
-        // Check for inline data (base64 image)
-        if (candidate.content?.parts?.[0]?.inlineData?.data) {
-          const base64Data = candidate.content.parts[0].inlineData.data;
-          const mimeType = candidate.content.parts[0].inlineData.mimeType || 'image/jpeg';
-          return `data:${mimeType};base64,${base64Data}`;
-        }
-
-        // Check for text response with image URL
-        if (candidate.content?.parts?.[0]?.text) {
-          const text = candidate.content.parts[0].text;
-          // Try to extract URL from text
-          const urlMatch = text.match(/https?:\/\/[^\s]+/);
-          if (urlMatch) {
-            return urlMatch[0];
-          }
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Error extracting image URL:', error);
-      return null;
-    }
+- Include relevant icons or graphics related to "${topic}"
+- Subtle professional background
+- Main content centered
+- Professional typography
+- Modern 2024 design trends
+- No text overlay needed, just visual design
+- Suitable for LinkedIn social media
+- 1200x627 pixels aspect ratio
+- High quality, professional appearance
+- Business-appropriate imagery`;
   }
 
   /**
@@ -155,7 +106,7 @@ Generate a visually appealing image that represents this topic professionally.`;
     const { topic, title } = request;
     const encodedTopic = encodeURIComponent(title || topic);
 
-    // Use a better placeholder service with more styling options
+    // Use a better placeholder service
     const placeholderUrl = `https://via.placeholder.com/1200x627/1f2937/ffffff?text=${encodedTopic}`;
 
     return {
