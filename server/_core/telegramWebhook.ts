@@ -142,14 +142,14 @@ async function handleCustomTopic(chatId: number, topic: string) {
       ],
     };
 
-    // Send post preview with image
+    // Send post preview as text message
     let previewMessage = `<b>📰 Generated Post Preview</b>\n\n`;
     previewMessage += `<b>Topic:</b> ${topic}\n\n`;
     previewMessage += `<b>Content:</b>\n${content.content}\n\n`;
     previewMessage += `<b>Hashtags:</b> ${content.hashtags.join(' ')}\n\n`;
     previewMessage += `<b>What would you like to do?</b>`;
 
-    await TelegramService.sendPhoto(chatId, imageUrl, previewMessage, approvalKeyboard);
+    await TelegramService.sendMessage(chatId, previewMessage, approvalKeyboard);
   } catch (error) {
     console.error('Error generating content:', error);
     await TelegramService.sendMessage(chatId, '❌ Error generating content. Please try again.');
@@ -178,18 +178,23 @@ async function handleCallbackQuery(callbackQuery: any) {
             title: post.topic,
           });
 
+          let successMessage = `✅ <b>Post Published Successfully!</b>\n\n📱 Your post is now live on LinkedIn!\n\n`;
+          successMessage += `<b>Posted Content:</b>\n${post.content}\n\n`;
+          successMessage += `<b>Topic:</b> ${post.topic}`;
+
           await TelegramService.editMessageText(
             chatId,
             messageId,
-            `✅ <b>Post Published Successfully!</b>\n\n📱 Your post is now live on LinkedIn!\n\n🔗 Post ID: ${result.id || 'Published'}`
+            successMessage
           );
 
           pendingPosts.delete(postId);
         } catch (error) {
+          console.error('LinkedIn publishing error:', error);
           await TelegramService.editMessageText(
             chatId,
             messageId,
-            `⚠️ <b>Publishing Error</b>\n\nThere was an issue publishing to LinkedIn. Please check your credentials and try again.`
+            `⚠️ <b>Publishing Error</b>\n\nThere was an issue publishing to LinkedIn. The post was saved but couldn't be published. Error: ${error instanceof Error ? error.message : 'Unknown error'}`
           );
         }
       }
