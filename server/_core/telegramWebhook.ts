@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import type { Express } from 'express';
 import { TelegramService, TelegramMessage } from '../services/telegram.service';
 import { ContentService } from '../services/content.service';
 import { LinkedInService } from '../services/linkedin.service';
@@ -30,10 +31,18 @@ router.post('/webhook', async (req: Request, res: Response) => {
         await handleStartCommand(chatId);
       } else if (text === '/trends') {
         await handleTrendsCommand(chatId);
+      } else if (text === '/custom') {
+        await TelegramService.sendMessage(chatId, '📝 Send me a custom topic to create a post about!');
+      } else if (text === '/history') {
+        await TelegramService.sendMessage(chatId, '📋 Post history feature coming soon!');
+      } else if (text === '/settings') {
+        await TelegramService.sendMessage(chatId, '⚙️ Settings feature coming soon!');
+      } else if (text === '/help') {
+        await handleStartCommand(chatId);
       } else if (text === '/cancel') {
         await handleCancelCommand(chatId);
       } else if (text.startsWith('/')) {
-        await TelegramService.sendMessage(chatId, '❌ Unknown command. Use /start to see available commands.');
+        await TelegramService.sendMessage(chatId, '❌ Unknown command. Use /help to see available commands.');
       } else {
         // Treat as custom topic
         await handleCustomTopic(chatId, text);
@@ -53,19 +62,26 @@ router.post('/webhook', async (req: Request, res: Response) => {
 });
 
 async function handleStartCommand(chatId: number) {
-  const welcomeMessage = `
-👋 <b>Welcome to Morocco Trend Bot!</b>
+  const welcomeMessage = `👋 <b>Welcome to Morocco Trend Bot!</b>
 
-I help you create and publish professional LinkedIn posts about trending topics in Morocco.
+I help you discover trending topics and create professional LinkedIn posts automatically.
 
-<b>Available commands:</b>
-/trends - See trending topics
-/cancel - Cancel current operation
+<b>Available Commands:</b>
+🔥 /trends - Discover current trending topics
+✍️ /custom - Create post from custom topic
+📋 /history - View your post history
+⚙️ /settings - Configure preferences
+❓ /help - Show help menu
+❌ /cancel - Cancel current action
 
-Or just <b>send me any topic</b> to generate a post!
+<b>How it works:</b>
+1️⃣ Discover or enter a trending topic
+2️⃣ Choose a writing style
+3️⃣ AI generates content + image
+4️⃣ Preview and approve
+5️⃣ Publish to LinkedIn!
 
-What would you like to do?
-  `;
+Let's get started! 🚀`;
 
   await TelegramService.sendMessage(chatId, welcomeMessage);
 }
