@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { GroqService } from './groq.service';
 
 const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || '';
 
@@ -92,73 +93,26 @@ export class ContentService {
     const { topic, style = 'professional' } = request;
 
     try {
-      const prompt = `Generate a professional LinkedIn post about: "${topic}"
-      
-      Requirements:
-      - 10-15 lines of engaging content
-      - Professional but conversational tone
-      - Include key insights and value proposition
-      - End with a call-to-action
-      - Format: Use HTML tags for emphasis (<b>, <i>)
-      
-      Also provide:
-      1. A catchy title (one line)
-      2. 5 relevant hashtags
-      3. A detailed image prompt for creating a visual representation
-      
-      Format your response as JSON with keys: title, content, hashtags (array), imagePrompt`;
+      console.log('Generating content using Groq for topic:', topic);
 
-      if (!PERPLEXITY_API_KEY) {
-        // Generate mock content
-        return this.generateMockContent(topic);
-      }
+      // Use Groq for content generation (fast and free)
+      const groqContent = await GroqService.generateLinkedInContent({
+        topic,
+        style: style as 'professional' | 'creative' | 'casual' | 'thought-leadership',
+        language: 'English',
+        includeHashtags: true,
+      });
 
-      const response = await axios.post(
-        'https://api.perplexity.ai/chat/completions',
-        {
-          model: 'sonar',
-          messages: [
-            {
-              role: 'user',
-              content: prompt,
-            },
-          ],
-          temperature: 0.7,
-          top_p: 0.9,
-          return_citations: false,
-          search_domain_filter: ['perplexity.com'],
-          return_images: false,
-          search_recency_filter: 'month',
-          top_k: 2,
-          stream: false,
-          presence_penalty: 0,
-          frequency_penalty: 1,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${PERPLEXITY_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      const responseText = response.data.choices[0].message.content;
-
-      // Parse JSON from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]);
-        return {
-          title: parsed.title || topic,
-          content: parsed.content || '',
-          hashtags: parsed.hashtags || [],
-          imagePrompt: parsed.imagePrompt || `Professional image about ${topic}`,
-        };
-      }
-
-      return this.generateMockContent(topic);
+      // Convert to expected format
+      return {
+        title: groqContent.title,
+        content: groqContent.content,
+        hashtags: groqContent.hashtags,
+        imagePrompt: `Professional LinkedIn post image about ${topic}. ${groqContent.content.substring(0, 100)}...`,
+      };
     } catch (error) {
-      console.error('Error generating content:', error);
+      console.error('Error generating content with Groq:', error);
+      // Fallback to mock content
       return this.generateMockContent(topic);
     }
   }
